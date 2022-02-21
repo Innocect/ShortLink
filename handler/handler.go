@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"log"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/ashu/model"
 	"github.com/ashu/redisDao"
@@ -19,7 +21,7 @@ func GetHandler(resp http.ResponseWriter, req *http.Request) {
 	if !ok || len(longUrl) == 0 {
 		log.Fatal("Invalid Long URL")
 
-		resp.Write(getError())
+		resp.Write(getError("Invalid Long URL"))
 
 	} else {
 
@@ -34,7 +36,7 @@ func GetHandler(resp http.ResponseWriter, req *http.Request) {
 			slug, err := generateSlug()
 			if err != nil {
 				log.Fatal("Error in generating Slug")
-				resp.Write(getError())
+				resp.Write(getError("Error in generating Slug"))
 			}
 
 			//2. store in Redis Todo
@@ -48,8 +50,8 @@ func GetHandler(resp http.ResponseWriter, req *http.Request) {
 			}
 			response, err := json.Marshal(responseModel)
 			if err != nil {
-				log.Fatal("Error in Marshalling")
-				resp.Write(getError())
+				log.Fatal("Error in Marshalling response")
+				resp.Write(getError("Error in Marshalling response"))
 			}
 
 			resp.Write(response)
@@ -59,9 +61,9 @@ func GetHandler(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func getError() []byte {
+func getError(errName string) []byte {
 	err := model.Errors{
-		Errors: "Error generating URL",
+		Errors: errName,
 	}
 
 	resp, _ := json.Marshal(err)
@@ -69,9 +71,28 @@ func getError() []byte {
 }
 
 func generateSlug() (string, error) {
-	return "abcd", nil
+	letters := getLetters()
+	s := make([]rune, 4)
+	x1 := rand.NewSource(time.Now().UnixNano())
+	y1 := rand.New(x1)
+
+	for i := range s {
+		s[i] = letters[y1.Intn(len(letters))]
+	}
+
+	slug := string(s)
+
+	return slug, nil
 }
 
 func checkInRedis(s string) bool {
 	return false
+}
+
+func getLetters() []rune {
+	var letters = []rune("23456789abcdefghjkmnpqrtuvwxyzACDEFGHJKMNPQRTUVWXYZ")
+	rand.Shuffle(len(letters), func(i, j int) {
+		letters[i], letters[j] = letters[j], letters[i]
+	})
+	return letters
 }
