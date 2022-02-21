@@ -16,7 +16,7 @@ func main() {
 	r := mux.NewRouter()
 	redisClient := redisDao.RedisConnection()
 	if redisClient == nil {
-		log.Fatal("Error initialising redis")
+		log.Panic("Error initialising Redis")
 	}
 
 	r.HandleFunc("/assignment/shorturl", handler.GetHandler(redisClient)).Methods(http.MethodGet)
