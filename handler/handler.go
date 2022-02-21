@@ -22,8 +22,6 @@ func GetHandler(redisClient *redis.Client) http.HandlerFunc {
 
 		} else {
 
-			// 1. find it in DB, If found write to response
-			// 2. If not found create the URL.
 			redisResult, _ := redisClient.Get(longUrl[0]).Bytes()
 
 			var redisData *model.ShortenUrl
@@ -47,7 +45,6 @@ func GetHandler(redisClient *redis.Client) http.HandlerFunc {
 					resp.Write(getError("Error in generating Slug"))
 				}
 
-				//3. Create the Shorten Url
 				shortUrl := "https://ashu/" + slug
 
 				responseModel := model.ShortenUrl{
@@ -61,7 +58,6 @@ func GetHandler(redisClient *redis.Client) http.HandlerFunc {
 					resp.Write(getError("Error in Marshalling response"))
 				}
 
-				// Store in Redis
 				err = redisClient.Set(longUrl[0], response, 0).Err()
 				if err != nil {
 					log.Fatal(err)
