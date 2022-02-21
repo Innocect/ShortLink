@@ -8,57 +8,74 @@ import (
 	"time"
 
 	"github.com/ashu/model"
-	"github.com/ashu/redisDao"
+	"github.com/go-redis/redis"
 )
 
-func GetHandler(resp http.ResponseWriter, req *http.Request) {
-	redisClient := redisDao.RedisConnection()
-	if redisClient == nil {
-		log.Fatal("Error initialising redis")
-	}
-	longUrl, ok := req.URL.Query()["long_url"]
+func GetHandler(redisClient *redis.Client) http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
 
-	if !ok || len(longUrl) == 0 {
-		log.Fatal("Invalid Long URL")
+		longUrl, ok := req.URL.Query()["long_url"]
 
-		resp.Write(getError("Invalid Long URL"))
+		if !ok || len(longUrl) == 0 {
+			log.Fatal("Invalid Long URL")
+			resp.Write(getError("Invalid Long URL"))
 
-	} else {
-
-		// 1. find it in DB, If found write to response
-		// 2. If not found create the URL.
-
-		if checkInRedis(longUrl[0]) {
-			log.Println("Found in DB")
-			//to do
 		} else {
-			log.Println("Not Found in DB")
-			slug, err := generateSlug()
-			if err != nil {
-				log.Fatal("Error in generating Slug")
-				resp.Write(getError("Error in generating Slug"))
+
+			// 1. find it in DB, If found write to response
+			// 2. If not found create the URL.
+			redisResult, _ := redisClient.Get(longUrl[0]).Bytes()
+
+			var redisData *model.ShortenUrl
+			_ = json.Unmarshal(redisResult, &redisData)
+
+			if len(redisResult) > 0 && redisData.LongUrl == longUrl[0] {
+				log.Println("Found in DB")
+
+				response, err := json.Marshal(redisData)
+				if err != nil {
+					log.Fatal("Error in Marshalling response")
+					resp.Write(getError("Error in Marshalling response"))
+				}
+				resp.Write(response)
+
+			} else {
+				log.Println("Not Found in DB")
+				slug, err := generateSlug()
+				if err != nil {
+					log.Fatal("Error in generating Slug")
+					resp.Write(getError("Error in generating Slug"))
+				}
+
+				//3. Create the Shorten Url
+				shortUrl := "https://ashu/" + slug
+
+				responseModel := model.ShortenUrl{
+					LongUrl:      longUrl[0],
+					ShortUrl:     shortUrl,
+					AlreadyExist: false,
+				}
+				response, err := json.Marshal(responseModel)
+				if err != nil {
+					log.Fatal("Error in Marshalling response")
+					resp.Write(getError("Error in Marshalling response"))
+				}
+
+				// Store in Redis
+				err = redisClient.Set(longUrl[0], response, 0).Err()
+				if err != nil {
+					log.Fatal(err)
+					resp.Write(getError(err.Error()))
+				}
+
+				log.Println("Request served Successfully")
+				resp.Write(response)
+
 			}
-
-			//2. store in Redis Todo
-
-			//3. Create the Shorten Url
-			shortUrl := "https://ashu/" + slug
-
-			responseModel := model.ShortenUrl{
-				LongUrl:  longUrl[0],
-				ShortUrl: shortUrl,
-			}
-			response, err := json.Marshal(responseModel)
-			if err != nil {
-				log.Fatal("Error in Marshalling response")
-				resp.Write(getError("Error in Marshalling response"))
-			}
-
-			resp.Write(response)
 
 		}
-
 	}
+
 }
 
 func getError(errName string) []byte {
@@ -85,12 +102,8 @@ func generateSlug() (string, error) {
 	return slug, nil
 }
 
-func checkInRedis(s string) bool {
-	return false
-}
-
 func getLetters() []rune {
-	var letters = []rune("23456789abcdefghjkmnpqrtuvwxyzACDEFGHJKMNPQRTUVWXYZ")
+	var letters = []rune("abcdefghjkmnpqrtuvwxyzACDEFGHJKMNPQRTUVWXYZ")
 	rand.Shuffle(len(letters), func(i, j int) {
 		letters[i], letters[j] = letters[j], letters[i]
 	})

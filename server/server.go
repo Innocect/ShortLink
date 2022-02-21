@@ -7,14 +7,19 @@ import (
 	"time"
 
 	"github.com/ashu/handler"
+	"github.com/ashu/redisDao"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 )
 
 func main() {
 	r := mux.NewRouter()
+	redisClient := redisDao.RedisConnection()
+	if redisClient == nil {
+		log.Fatal("Error initialising redis")
+	}
 
-	r.HandleFunc("/assignment/user", handler.GetHandler).Methods(http.MethodGet)
+	r.HandleFunc("/assignment/user", handler.GetHandler(redisClient)).Methods(http.MethodGet)
 	corsOpts := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:3000"}, //you service is available and allowed for this base url
 		AllowedMethods: []string{
